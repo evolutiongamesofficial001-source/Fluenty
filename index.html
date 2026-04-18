@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fluently — Aprenda Idiomas com IA</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     AUTH SCREEN
+═══════════════════════════════════════════════════════════════ -->
+<div id="auth-screen" class="screen active">
+  <div class="auth-bg">
+    <div class="auth-orb orb1"></div>
+    <div class="auth-orb orb2"></div>
+    <div class="auth-orb orb3"></div>
+  </div>
+
+  <div class="auth-container">
+    <div class="auth-brand">
+      <div class="brand-icon">🌐</div>
+      <h1 class="brand-name">Fluently</h1>
+      <p class="brand-tagline">Aprenda idiomas com IA adaptativa</p>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">Entrar</button>
+      <button class="auth-tab" data-tab="register">Cadastrar</button>
+    </div>
+
+    <!-- Login Form -->
+    <div class="auth-form" id="form-login">
+      <div class="field-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="seu@email.com" />
+      </div>
+      <div class="field-group">
+        <label>Senha</label>
+        <input type="password" id="login-password" placeholder="••••••••" />
+      </div>
+      <div id="login-error" class="auth-error hidden"></div>
+      <button class="btn-primary" id="btn-login">Entrar</button>
+    </div>
+
+    <!-- Register Form -->
+    <div class="auth-form hidden" id="form-register">
+      <div class="field-group">
+        <label>Nome completo</label>
+        <input type="text" id="reg-name" placeholder="Seu nome" />
+      </div>
+      <div class="field-group">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="seu@email.com" />
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Senha</label>
+          <input type="password" id="reg-password" placeholder="••••••••" />
+        </div>
+        <div class="field-group">
+          <label>Idade</label>
+          <input type="number" id="reg-age" placeholder="25" min="5" max="120" />
+        </div>
+      </div>
+      <div id="reg-error" class="auth-error hidden"></div>
+      <button class="btn-primary" id="btn-register">Criar conta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════════════════════════════ -->
+<div id="app-screen" class="screen hidden">
+
+  <!-- SIDEBAR NAV -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon-sm">🌐</span>
+      <span class="brand-text">Fluently</span>
+    </div>
+
+    <div class="user-card" id="nav-user-card">
+      <div class="user-avatar" id="nav-avatar">?</div>
+      <div class="user-info">
+        <div class="user-name" id="nav-username">—</div>
+        <div class="user-xp" id="nav-xp">0 XP</div>
+      </div>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="#" class="nav-link active" data-view="home">🏠 <span>Início</span></a></li>
+      <li><a href="#" class="nav-link" data-view="courses">📚 <span>Cursos</span></a></li>
+      <li><a href="#" class="nav-link" data-view="chat">💬 <span>Chat IA</span></a></li>
+      <li><a href="#" class="nav-link" data-view="exercises">🎯 <span>Exercícios</span></a></li>
+      <li><a href="#" class="nav-link" data-view="simulations">🎭 <span>Simulações</span></a></li>
+      <li><a href="#" class="nav-link" data-view="progress">📊 <span>Progresso</span></a></li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <button class="btn-theme-toggle" id="btn-theme">🌙 Modo claro</button>
+      <button class="btn-logout" id="btn-logout">↩ Sair</button>
+    </div>
+  </nav>
+
+  <!-- HAMBURGER -->
+  <button class="hamburger" id="hamburger">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- ── HOME VIEW ── -->
+    <div class="view active" id="view-home">
+      <div class="view-header">
+        <h2>Olá, <span id="home-username">usuário</span> 👋</h2>
+        <p class="subtitle">Continue sua jornada linguística</p>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-value" id="stat-xp">0</div>
+          <div class="stat-label">XP Total</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🔥</div>
+          <div class="stat-value" id="stat-streak">0</div>
+          <div class="stat-label">Dias seguidos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📚</div>
+          <div class="stat-value" id="stat-courses">0</div>
+          <div class="stat-label">Cursos ativos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🏆</div>
+          <div class="stat-value" id="stat-level">A1</div>
+          <div class="stat-label">Nível médio</div>
+        </div>
+      </div>
+
+      <div class="section-title">Meus cursos ativos</div>
+      <div id="home-active-courses" class="active-courses-grid">
+        <div class="empty-state">
+          <p>Nenhum curso iniciado ainda.</p>
+          <button class="btn-secondary" data-view="courses">Ver cursos →</button>
+        </div>
+      </div>
+
+      <div class="section-title">Atividade rápida</div>
+      <div class="quick-actions">
+        <button class="quick-btn" data-view="chat">💬 Conversar com IA</button>
+        <button class="quick-btn" data-view="exercises">🎯 Fazer exercício</button>
+        <button class="quick-btn" data-view="simulations">🎭 Simulação</button>
+      </div>
+    </div>
+
+    <!-- ── COURSES VIEW ── -->
+    <div class="view hidden" id="view-courses">
+      <div class="view-header">
+        <h2>Explorar Cursos</h2>
+        <p class="subtitle">Escolha um idioma para começar</p>
+      </div>
+      <div class="courses-grid" id="courses-grid"></div>
+    </div>
+
+    <!-- ── CHAT VIEW ── -->
+    <div class="view hidden" id="view-chat">
+      <div class="view-header chat-header-row">
+        <div>
+          <h2>Chat com IA</h2>
+          <p class="subtitle">Converse e aprenda em tempo real</p>
+        </div>
+        <div class="chat-lang-selector">
+          <label>Idioma:</label>
+          <select id="chat-lang-select"></select>
+        </div>
+      </div>
+
+      <div class="chat-window" id="chat-window">
+        <div class="chat-welcome">
+          <div class="chat-welcome-icon">🤖</div>
+          <p>Olá! Sou seu professor de idiomas com IA. Me mande uma mensagem no idioma que está aprendendo e vou te ajudar!</p>
+        </div>
+      </div>
+
+      <div class="chat-input-bar">
+        <button class="btn-mic" id="btn-mic" title="Microfone (em breve)">🎤</button>
+        <textarea id="chat-input" placeholder="Digite sua mensagem..." rows="1"></textarea>
+        <button class="btn-send" id="btn-send">➤</button>
+      </div>
+    </div>
+
+    <!-- ── EXERCISES VIEW ── -->
+    <div class="view hidden" id="view-exercises">
+      <div class="view-header">
+        <h2>Exercícios</h2>
+        <p class="subtitle">Exercícios gerados por IA para você</p>
+      </div>
+
+      <div class="exercise-controls">
+        <div class="field-group">
+          <label>Idioma</label>
+          <select id="ex-lang-select"></select>
+        </div>
+        <div class="field-group">
+          <label>Tipo</label>
+          <select id="ex-type-select">
+            <option value="traducao">Tradução</option>
+            <option value="completar">Complete a frase</option>
+            <option value="vocabulario">Vocabulário</option>
+            <option value="gramatica">Gramática</option>
+          </select>
+        </div>
+        <button class="btn-primary" id="btn-gen-exercise">Gerar exercício ⚡</button>
+      </div>
+
+      <div id="exercise-area" class="exercise-area">
+        <div class="empty-state">
+          <p>Clique em "Gerar exercício" para começar!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SIMULATIONS VIEW ── -->
+    <div class="view hidden" id="view-simulations">
+      <div class="view-header">
+        <h2>Simulações</h2>
+        <p class="subtitle">Pratique em situações do dia a dia</p>
+      </div>
+
+      <div class="sim-lang-row">
+        <label>Idioma:</label>
+        <select id="sim-lang-select"></select>
+      </div>
+
+      <div class="simulations-grid">
+        <div class="sim-card" data-sim="restaurante">
+          <div class="sim-icon">🍽️</div>
+          <h3>Restaurante</h3>
+          <p>Peça comida, entenda o cardápio, interaja com o garçom</p>
+          <button class="btn-secondary">Iniciar</button>
+        </div>
+        <div class="sim-card" data-sim="viagem">
+          <div class="sim-icon">✈️</div>
+          <h3>Viagem</h3>
+          <p>Aeroporto, hotel, direções e situações de turismo</p>
+          <button class="btn-secondary">Iniciar</button>
+        </div>
+        <div class="sim-card" data-sim="entrevista">
+          <div class="sim-icon">💼</div>
+          <h3>Entrevista</h3>
+          <p>Simule uma entrevista de emprego no idioma alvo</p>
+          <button class="btn-secondary">Iniciar</button>
+        </div>
+        <div class="sim-card" data-sim="mercado">
+          <div class="sim-icon">🛒</div>
+          <h3>Mercado</h3>
+          <p>Compras, preços, quantidades e expressões úteis</p>
+          <button class="btn-secondary">Iniciar</button>
+        </div>
+      </div>
+
+      <div id="sim-chat-area" class="sim-chat-area hidden">
+        <div class="sim-chat-header">
+          <span id="sim-title">Simulação</span>
+          <button class="btn-close-sim" id="btn-close-sim">✕ Encerrar</button>
+        </div>
+        <div class="chat-window" id="sim-chat-window"></div>
+        <div class="chat-input-bar">
+          <textarea id="sim-input" placeholder="Responda em..." rows="1"></textarea>
+          <button class="btn-send" id="sim-send">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PROGRESS VIEW ── -->
+    <div class="view hidden" id="view-progress">
+      <div class="view-header">
+        <h2>Meu Progresso</h2>
+        <p class="subtitle">Acompanhe sua evolução</p>
+      </div>
+
+      <div class="progress-overview">
+        <div class="level-badge-big" id="prog-level-badge">A1</div>
+        <div class="progress-details">
+          <div class="xp-row">
+            <span>XP Total: <strong id="prog-xp">0</strong></span>
+            <span>Streak: <strong id="prog-streak">🔥 0 dias</strong></span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="prog-bar" style="width:0%"></div>
+          </div>
+          <div class="progress-bar-label">XP para próximo nível</div>
+        </div>
+      </div>
+
+      <div class="section-title">Progresso por idioma</div>
+      <div id="course-progress-list" class="course-progress-list"></div>
+
+      <div class="section-title">Erros frequentes</div>
+      <div id="error-patterns" class="error-patterns">
+        <p class="muted">Seus padrões de erro aparecerão aqui conforme você pratica.</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     GROQ API KEY MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div id="apikey-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>🔑 Chave da API Groq</h3>
+    <p>Para usar os recursos de IA, insira sua chave da API Groq (gratuita em <strong>console.groq.com</strong>).</p>
+    <div class="field-group">
+      <input type="password" id="apikey-input" placeholder="gsk_..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="btn-save-apikey">Salvar e continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
