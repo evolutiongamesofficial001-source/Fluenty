@@ -253,6 +253,7 @@ function showView(name) {
   if (name === 'home') renderHome();
   if (name === 'progress') renderProgress();
   if (name === 'courses') renderCourses();
+  if (name === 'learn') initLearnView();
 }
 
 function toast(msg, type = 'info') {
@@ -353,7 +354,7 @@ function populateLangSelects() {
       }).join('')
     : COURSES.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
 
-  ['chat-lang-select','ex-lang-select','sim-lang-select'].forEach(sel => {
+  ['chat-lang-select','ex-lang-select','sim-lang-select','learn-lang-select'].forEach(sel => {
     const el = document.getElementById(sel);
     if (el) el.innerHTML = opts;
   });
@@ -543,6 +544,144 @@ async function sendSimMessage() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// ── LEARN (AULAS ESCRITAS) ────────────────────────────────────────────
+function initLearnView() {
+  // Sync lang select if not already done
+  const sel = document.getElementById('learn-lang-select');
+  if (sel && !sel.dataset.ready) {
+    sel.dataset.ready = '1';
+  }
+}
+
+const TOPIC_LABELS = {
+  alfabeto: 'Alfabeto e Pronúncia', saudacoes: 'Saudações e Apresentações',
+  numeros: 'Números e Quantidades', cores: 'Cores e Adjetivos',
+  familia: 'Família e Pessoas', alimentacao: 'Alimentação e Restaurante',
+  transporte: 'Transporte e Direções', tempo: 'Tempo e Clima',
+  trabalho: 'Trabalho e Profissões', verbos: 'Verbos Essenciais e Conjugação',
+  passado: 'Tempos Verbais — Passado', futuro: 'Tempos Verbais — Futuro',
+  expressoes: 'Expressões Idiomáticas', cultura: 'Cultura e Costumes',
+};
+
+async function generateLesson(topicOverride) {
+  const langId = document.getElementById('learn-lang-select').value;
+  const level  = document.getElementById('learn-level-select').value;
+  const topic  = topicOverride || document.getElementById('learn-topic-select').value;
+  const topicLabel = TOPIC_LABELS[topic] || topic;
+  const lang   = langName(langId);
+  const area   = document.getElementById('lesson-area');
+
+  area.innerHTML = `<div class="empty-state"><div class="spinner"></div><p>Gerando sua aula de ${lang}...</p></div>`;
+
+  const systemPrompt = `Você é um professor experiente de ${lang}. 
+Escreva aulas didáticas, estruturadas e envolventes em português (PT-BR).
+Sempre inclua exemplos reais no idioma ${lang} com tradução em parênteses.
+Use emojis para tornar o conteúdo mais visual. Seja claro, progressivo e motivador.`;
+
+  const userPrompt = `Crie uma aula completa e didática sobre o tópico "${topicLabel}" em ${lang} para o nível ${level}.
+
+A aula DEVE conter obrigatoriamente estas seções:
+1. 📌 INTRODUÇÃO — Contextualização do tópico (2-3 frases motivadoras)
+2. 📚 TEORIA — Explicação clara das regras/conceitos principais
+3. 📝 VOCABULÁRIO ESSENCIAL — Lista de 8-12 palavras/frases chave com tradução e exemplo de uso
+4. 💬 EXEMPLOS PRÁTICOS — 5 frases completas em ${lang} com tradução
+5. ⚠️ ATENÇÃO — 2-3 erros comuns que brasileiros cometem neste tópico
+6. 🧠 DICA DE OURO — Um truque memorável para fixar o conteúdo
+7. ✅ MINI-QUIZ — 3 perguntas de fixação (com as respostas ao final)
+
+Seja detalhado, claro e use exemplos do dia a dia.`;
+
+  try {
+    const result = await groqChat([{ role: 'user', content: userPrompt }], systemPrompt);
+    renderLesson(result, lang, topicLabel, level, langId);
+    addXP(20);
+  } catch (err) {
+    area.innerHTML = `<div class="empty-state"><p>Erro ao gerar aula: ${err.message}</p></div>`;
+  }
+}
+
+function renderLesson(raw, lang, topic, level, langId) {
+  const area = document.getElementById('lesson-area');
+
+  // Parse sections by emoji markers
+  const sections = [];
+  const markers = [
+    { emoji: '📌', key: 'intro' },
+    { emoji: '📚', key: 'teoria' },
+    { emoji: '📝', key: 'vocab' },
+    { emoji: '💬', key: 'exemplos' },
+    { emoji: '⚠️', key: 'atencao' },
+    { emoji: '🧠', key: 'dica' },
+    { emoji: '✅', key: 'quiz' },
+  ];
+
+  // Split raw text into lines and group by section
+  const lines = raw.split('\n');
+  let parsed = {};
+  let currentKey = null;
+  let currentLines = [];
+
+  for (const line of lines) {
+    const marker = markers.find(m => line.includes(m.emoji));
+    if (marker) {
+      if (currentKey) parsed[currentKey] = currentLines.join('\n').trim();
+      currentKey = marker.key;
+      currentLines = [line.replace(/^#+\s*/, '')];
+    } else if (currentKey) {
+      currentLines.push(line);
+    }
+  }
+  if (currentKey) parsed[currentKey] = currentLines.join('\n').trim();
+
+  // If parsing failed, render raw
+  if (!Object.keys(parsed).length) {
+    area.innerHTML = `
+      <div class="lesson-card">
+        <div class="lesson-header">
+          <div class="lesson-badge">${level}</div>
+          <h3>${topic} — ${lang}</h3>
+          <div class="lesson-xp">⚡ +20 XP</div>
+        </div>
+        <div class="lesson-body">${escHtml(raw)}</div>
+        <div class="lesson-actions">
+          <button class="btn-primary" style="width:auto" onclick="showView('exercises')">🎯 Praticar agora</button>
+          <button class="btn-secondary" onclick="showView('chat')">💬 Perguntar ao professor</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const sectionHTML = (emoji, title, key, cls='') => {
+    if (!parsed[key]) return '';
+    return `<div class="lesson-section ${cls}">
+      <div class="lesson-section-title">${emoji} ${title}</div>
+      <div class="lesson-section-body">${escHtml(parsed[key])}</div>
+    </div>`;
+  };
+
+  area.innerHTML = `
+    <div class="lesson-card">
+      <div class="lesson-header">
+        <div class="lesson-badge">${level}</div>
+        <h3>${topic} — ${lang}</h3>
+        <div class="lesson-xp">⚡ +20 XP ganhos!</div>
+      </div>
+      <div class="lesson-body">
+        ${sectionHTML('📌','Introdução','intro','lesson-intro')}
+        ${sectionHTML('📚','Teoria','teoria')}
+        ${sectionHTML('📝','Vocabulário Essencial','vocab','lesson-vocab')}
+        ${sectionHTML('💬','Exemplos Práticos','exemplos','lesson-examples')}
+        ${sectionHTML('⚠️','Atenção — Erros Comuns','atencao','lesson-warning')}
+        ${sectionHTML('🧠','Dica de Ouro','dica','lesson-tip')}
+        ${sectionHTML('✅','Mini-Quiz','quiz','lesson-quiz')}
+      </div>
+      <div class="lesson-actions">
+        <button class="btn-primary" style="width:auto" onclick="showView('exercises')">🎯 Fazer exercícios</button>
+        <button class="btn-secondary" onclick="showView('chat')">💬 Tirar dúvidas com a IA</button>
+      </div>
+    </div>`;
 }
 
 // ── PROGRESS ──────────────────────────────────────────────────────────
@@ -747,6 +886,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── EXERCISE
   document.getElementById('btn-gen-exercise').addEventListener('click', generateExercise);
+
+  // ── LEARN / LESSON
+  document.getElementById('btn-gen-lesson').addEventListener('click', () => generateLesson());
+  document.querySelectorAll('.topic-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const topic = chip.dataset.topic;
+      document.getElementById('learn-topic-select').value = topic;
+      generateLesson(topic);
+    });
+  });
 
   // ── SIM CARDS
   document.querySelectorAll('.sim-card').forEach(card => {

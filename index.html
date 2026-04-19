@@ -96,6 +96,7 @@
     <ul class="nav-links">
       <li><a href="#" class="nav-link active" data-view="home">🏠 <span>Início</span></a></li>
       <li><a href="#" class="nav-link" data-view="courses">📚 <span>Cursos</span></a></li>
+      <li><a href="#" class="nav-link" data-view="learn">🎓 <span>Aprender</span></a></li>
       <li><a href="#" class="nav-link" data-view="chat">💬 <span>Chat IA</span></a></li>
       <li><a href="#" class="nav-link" data-view="exercises">🎯 <span>Exercícios</span></a></li>
       <li><a href="#" class="nav-link" data-view="simulations">🎭 <span>Simulações</span></a></li>
@@ -168,6 +169,73 @@
         <p class="subtitle">Escolha um idioma para começar</p>
       </div>
       <div class="courses-grid" id="courses-grid"></div>
+    </div>
+
+    <!-- ── LEARN VIEW ── -->
+    <div class="view hidden" id="view-learn">
+      <div class="view-header">
+        <h2>📖 Aprender</h2>
+        <p class="subtitle">Aulas escritas para dominar o idioma passo a passo</p>
+      </div>
+
+      <div class="learn-controls">
+        <div class="field-group">
+          <label>Idioma</label>
+          <select id="learn-lang-select"></select>
+        </div>
+        <div class="field-group">
+          <label>Nível</label>
+          <select id="learn-level-select">
+            <option value="A1">A1 — Iniciante</option>
+            <option value="A2">A2 — Básico</option>
+            <option value="B1">B1 — Intermediário</option>
+            <option value="B2">B2 — Intermediário avançado</option>
+            <option value="C1">C1 — Avançado</option>
+            <option value="C2">C2 — Maestria</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Tópico</label>
+          <select id="learn-topic-select">
+            <option value="alfabeto">Alfabeto e pronúncia</option>
+            <option value="saudacoes">Saudações e apresentações</option>
+            <option value="numeros">Números e quantidades</option>
+            <option value="cores">Cores e adjetivos</option>
+            <option value="familia">Família e pessoas</option>
+            <option value="alimentacao">Alimentação e restaurante</option>
+            <option value="transporte">Transporte e direções</option>
+            <option value="tempo">Tempo e clima</option>
+            <option value="trabalho">Trabalho e profissões</option>
+            <option value="verbos">Verbos essenciais e conjugação</option>
+            <option value="passado">Tempos verbais — Passado</option>
+            <option value="futuro">Tempos verbais — Futuro</option>
+            <option value="expressoes">Expressões idiomáticas</option>
+            <option value="cultura">Cultura e costumes</option>
+          </select>
+        </div>
+        <button class="btn-primary" id="btn-gen-lesson">Gerar aula ✨</button>
+      </div>
+
+      <!-- Lesson topics grid (quick picks) -->
+      <div class="section-title">Tópicos populares</div>
+      <div class="learn-topics-grid">
+        <button class="topic-chip" data-topic="saudacoes">👋 Saudações</button>
+        <button class="topic-chip" data-topic="numeros">🔢 Números</button>
+        <button class="topic-chip" data-topic="alimentacao">🍽️ Alimentação</button>
+        <button class="topic-chip" data-topic="verbos">📝 Verbos</button>
+        <button class="topic-chip" data-topic="transporte">🚌 Transporte</button>
+        <button class="topic-chip" data-topic="expressoes">💬 Expressões</button>
+        <button class="topic-chip" data-topic="tempo">⛅ Clima</button>
+        <button class="topic-chip" data-topic="familia">👨‍👩‍👧 Família</button>
+      </div>
+
+      <!-- Lesson display area -->
+      <div id="lesson-area" class="lesson-area">
+        <div class="empty-state">
+          <div style="font-size:3rem">🎓</div>
+          <p>Selecione um idioma e tópico, depois clique em "Gerar aula"!</p>
+        </div>
+      </div>
     </div>
 
     <!-- ── CHAT VIEW ── -->
