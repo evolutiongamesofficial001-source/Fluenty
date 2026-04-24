@@ -20,6 +20,63 @@ function rot13(str){
   });
 }
 
+// ── SOUND SYSTEM ─────────────────────────────────────────────────────
+const SoundFX = {
+  _ctx: null,
+  _enabled: () => localStorage.getItem('fluently_sound') !== 'off',
+
+  _getCtx() {
+    if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return this._ctx;
+  },
+
+  _play(type) {
+    if (!this._enabled()) return;
+    try {
+      const ctx = this._getCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const configs = {
+        correct:  { freq: [523, 659, 784], dur: 0.12, wave: 'sine',     vol: 0.25 },
+        wrong:    { freq: [220, 180],       dur: 0.15, wave: 'sawtooth', vol: 0.18 },
+        xp:       { freq: [784, 988, 1175], dur: 0.09, wave: 'sine',     vol: 0.2  },
+        send:     { freq: [440, 550],       dur: 0.07, wave: 'sine',     vol: 0.15 },
+        click:    { freq: [660],            dur: 0.05, wave: 'sine',     vol: 0.12 },
+        levelup:  { freq: [523,659,784,1047],dur:0.1, wave: 'sine',      vol: 0.25 },
+      };
+
+      const cfg = configs[type] || configs.click;
+      osc.type = cfg.wave;
+      gain.gain.setValueAtTime(cfg.vol, ctx.currentTime);
+
+      cfg.freq.forEach((f, i) => {
+        osc.frequency.setValueAtTime(f, ctx.currentTime + i * cfg.dur);
+      });
+
+      const total = cfg.freq.length * cfg.dur;
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + total + 0.05);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + total + 0.06);
+    } catch(e) { /* silently ignore if audio unavailable */ }
+  },
+
+  correct()  { this._play('correct');  },
+  wrong()    { this._play('wrong');    },
+  xp()       { this._play('xp');       },
+  send()     { this._play('send');     },
+  click()    { this._play('click');    },
+  levelup()  { this._play('levelup'); },
+
+  toggle() {
+    const on = this._enabled();
+    localStorage.setItem('fluently_sound', on ? 'off' : 'on');
+    return !on;
+  },
+};
+
 // chave salva em ROT13 no localStorage
 let chaveCodificada = localStorage.getItem('fluently_groq_key') || 'tfx_IjhNQlhBeAl19899CtRTJTqlo3SLsfMSa4fyswjlPUndpzYRJRwD';
 
@@ -32,6 +89,8 @@ const COURSES = [
   { id: 'fr',  name: 'Francês',         emoji: '🇫🇷', native: 'Français' },
   { id: 'it',  name: 'Italiano',        emoji: '🇮🇹', native: 'Italiano' },
   { id: 'es',  name: 'Espanhol',        emoji: '🇪🇸', native: 'Español' },
+  { id: 'pt',  name: 'Português (PT)',  emoji: '🇵🇹', native: 'Português' },
+  { id: 'ko',  name: 'Coreano',         emoji: '🇰🇷', native: '한국어' },
   { id: 'ja',  name: 'Japonês',         emoji: '🇯🇵', native: '日本語' },
   { id: 'la',  name: 'Latim',           emoji: '🏛️',  native: 'Latina' },
   { id: 'zh',  name: 'Chinês (Mandarim)',emoji: '🇨🇳', native: '普通话' },
@@ -142,10 +201,18 @@ async function saveUser() {
 }
 
 function addXP(amount) {
+  const prevLevel = getLevelFromXP(currentUser.xp || 0);
   currentUser.xp = (currentUser.xp || 0) + amount;
+  const newLevel = getLevelFromXP(currentUser.xp);
   updateStreak();
   updateNavStats();
   saveUser();
+  if (prevLevel !== newLevel) {
+    SoundFX.levelup();
+    toast(`🎉 Você subiu para o nível ${newLevel}!`, 'success');
+  } else {
+    SoundFX.xp();
+  }
 }
 
 function updateStreak() {
@@ -354,7 +421,7 @@ function populateLangSelects() {
       }).join('')
     : COURSES.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
 
-  ['chat-lang-select','ex-lang-select','sim-lang-select','learn-lang-select'].forEach(sel => {
+  ['chat-lang-select','ex-lang-select','sim-lang-select','learn-lang-select','games-lang-select'].forEach(sel => {
     const el = document.getElementById(sel);
     if (el) el.innerHTML = opts;
   });
@@ -397,6 +464,7 @@ async function sendChatMessage() {
 
   appendMessage('chat-window', 'user', text);
   chatHistory.push({ role: 'user', content: text });
+  SoundFX.send();
 
   const btn = document.getElementById('btn-send');
   btn.disabled = true;
@@ -473,6 +541,7 @@ async function checkExercise(exercise, langId) {
     feedback.innerHTML = `<div class="exercise-feedback">${escHtml(result)}</div>
       <div class="xp-earned">⚡ +15 XP ganhos!</div>`;
     addXP(15);
+    SoundFX.correct();
 
     // Detect common error patterns
     if (result.toLowerCase().includes('past tense') || result.toLowerCase().includes('passado')) addError('Past Tense');
@@ -684,6 +753,371 @@ function renderLesson(raw, lang, topic, level, langId) {
     </div>`;
 }
 
+// ── MINI GAMES ────────────────────────────────────────────────────────
+const MINI_GAMES = {
+  // Jogo 1: Flash Cards
+  flashcard: {
+    name: 'Flash Cards',
+    emoji: '🃏',
+    desc: 'Adivinhe o significado da palavra',
+    xp: 8,
+    async start(langId) {
+      const lang = langName(langId);
+      const level = getLevelFromXP(currentUser.xp || 0);
+      const area = document.getElementById('minigame-play-area');
+      area.innerHTML = `<div class="empty-state"><div class="spinner"></div><p>Gerando flash cards...</p></div>`;
+
+      const prompt = `Crie 5 flash cards de vocabulário em ${lang} para nível ${level}.
+Retorne APENAS JSON válido, sem markdown, neste formato exato:
+[{"word":"palavra em ${lang}","translation":"tradução em português","example":"frase de exemplo em ${lang}"}]`;
+
+      try {
+        const raw = await groqChat([{role:'user',content:prompt}],
+          `Você é um gerador de flash cards. Retorne apenas JSON puro, sem texto adicional, sem blocos de código.`);
+        const clean = raw.replace(/```json|```/g,'').trim();
+        const cards = JSON.parse(clean);
+        renderFlashCards(cards, langId);
+      } catch(e) {
+        area.innerHTML = `<div class="empty-state"><p>Erro ao gerar cards: ${e.message}</p></div>`;
+      }
+    }
+  },
+
+  // Jogo 2: Quiz de Múltipla Escolha
+  quiz: {
+    name: 'Quiz Rápido',
+    emoji: '⚡',
+    desc: 'Responda 5 perguntas de múltipla escolha',
+    xp: 10,
+    async start(langId) {
+      const lang = langName(langId);
+      const level = getLevelFromXP(currentUser.xp || 0);
+      const area = document.getElementById('minigame-play-area');
+      area.innerHTML = `<div class="empty-state"><div class="spinner"></div><p>Preparando quiz...</p></div>`;
+
+      const prompt = `Crie 5 perguntas de múltipla escolha sobre ${lang} para nível ${level}.
+Retorne APENAS JSON válido neste formato:
+[{"question":"pergunta em português","options":["A","B","C","D"],"correct":0,"explanation":"explicação breve"}]
+O campo correct é o índice (0-3) da resposta correta.`;
+
+      try {
+        const raw = await groqChat([{role:'user',content:prompt}],
+          `Você é um gerador de quizzes. Retorne apenas JSON puro sem markdown nem texto extra.`);
+        const clean = raw.replace(/```json|```/g,'').trim();
+        const questions = JSON.parse(clean);
+        renderQuiz(questions, langId);
+      } catch(e) {
+        area.innerHTML = `<div class="empty-state"><p>Erro ao gerar quiz: ${e.message}</p></div>`;
+      }
+    }
+  },
+
+  // Jogo 3: Completar a Frase
+  fillblank: {
+    name: 'Complete a Frase',
+    emoji: '✏️',
+    desc: 'Preencha o espaço em branco',
+    xp: 12,
+    async start(langId) {
+      const lang = langName(langId);
+      const level = getLevelFromXP(currentUser.xp || 0);
+      const area = document.getElementById('minigame-play-area');
+      area.innerHTML = `<div class="empty-state"><div class="spinner"></div><p>Gerando frases...</p></div>`;
+
+      const prompt = `Crie 4 frases em ${lang} com uma palavra faltando (representada por ___), nível ${level}.
+Retorne APENAS JSON válido:
+[{"sentence":"frase com ___ no lugar da palavra","answer":"palavra correta","hint":"dica em português"}]`;
+
+      try {
+        const raw = await groqChat([{role:'user',content:prompt}],
+          `Você é um gerador de exercícios fill-in-the-blank. Retorne apenas JSON puro sem markdown.`);
+        const clean = raw.replace(/```json|```/g,'').trim();
+        const items = JSON.parse(clean);
+        renderFillBlank(items, langId);
+      } catch(e) {
+        area.innerHTML = `<div class="empty-state"><p>Erro: ${e.message}</p></div>`;
+      }
+    }
+  },
+
+  // Jogo 4: Memória de Pares
+  memory: {
+    name: 'Memória',
+    emoji: '🧠',
+    desc: 'Combine a palavra com sua tradução',
+    xp: 15,
+    async start(langId) {
+      const lang = langName(langId);
+      const level = getLevelFromXP(currentUser.xp || 0);
+      const area = document.getElementById('minigame-play-area');
+      area.innerHTML = `<div class="empty-state"><div class="spinner"></div><p>Preparando jogo de memória...</p></div>`;
+
+      const prompt = `Gere 6 pares de palavras em ${lang} com tradução em português, nível ${level}.
+Retorne APENAS JSON válido:
+[{"word":"palavra em ${lang}","translation":"tradução"}]`;
+
+      try {
+        const raw = await groqChat([{role:'user',content:prompt}],
+          `Você é um gerador de pares de vocabulário. Retorne apenas JSON puro sem markdown.`);
+        const clean = raw.replace(/```json|```/g,'').trim();
+        const pairs = JSON.parse(clean);
+        renderMemoryGame(pairs, langId);
+      } catch(e) {
+        area.innerHTML = `<div class="empty-state"><p>Erro: ${e.message}</p></div>`;
+      }
+    }
+  },
+};
+
+// ── FLASH CARDS RENDERER ──────────────────────────────────────────────
+function renderFlashCards(cards, langId) {
+  const area = document.getElementById('minigame-play-area');
+  let idx = 0, score = 0, flipped = false;
+
+  const render = () => {
+    const c = cards[idx];
+    const pct = Math.round((idx / cards.length) * 100);
+    area.innerHTML = `
+      <div class="game-progress-bar"><div class="game-progress-fill" style="width:${pct}%"></div></div>
+      <div class="game-score-row"><span>Card ${idx+1}/${cards.length}</span><span>⭐ ${score} acertos</span></div>
+      <div class="flashcard-container" id="fc-container">
+        <div class="flashcard" id="flashcard">
+          <div class="flashcard-front">
+            <div class="fc-label">Qual a tradução?</div>
+            <div class="fc-word">${c.word}</div>
+            <div class="fc-hint">Clique para revelar</div>
+          </div>
+          <div class="flashcard-back">
+            <div class="fc-translation">${c.translation}</div>
+            <div class="fc-example">${c.example}</div>
+          </div>
+        </div>
+      </div>
+      <div class="fc-actions hidden" id="fc-actions">
+        <button class="btn-wrong" onclick="fcAnswer(false)">❌ Errei</button>
+        <button class="btn-correct" onclick="fcAnswer(true)">✅ Acertei</button>
+      </div>`;
+
+    document.getElementById('fc-container').addEventListener('click', () => {
+      if (flipped) return;
+      flipped = true;
+      SoundFX.click();
+      document.getElementById('flashcard').classList.add('flipped');
+      document.getElementById('fc-actions').classList.remove('hidden');
+    });
+  };
+
+  window.fcAnswer = (correct) => {
+    SoundFX[correct ? 'correct' : 'wrong']();
+    if (correct) score++;
+    flipped = false;
+    idx++;
+    if (idx >= cards.length) {
+      const xpEarned = score * MINI_GAMES.flashcard.xp;
+      addXP(xpEarned);
+      area.innerHTML = `<div class="game-result">
+        <div class="result-emoji">${score >= cards.length * 0.8 ? '🏆' : score >= cards.length * 0.5 ? '😊' : '💪'}</div>
+        <h3>Você acertou ${score}/${cards.length}</h3>
+        <div class="result-xp">+${xpEarned} XP ganhos!</div>
+        <button class="btn-primary" style="width:auto;margin-top:16px" onclick="MINI_GAMES.flashcard.start('${langId}')">Jogar novamente 🔄</button>
+      </div>`;
+    } else render();
+  };
+
+  render();
+}
+
+// ── QUIZ RENDERER ─────────────────────────────────────────────────────
+function renderQuiz(questions, langId) {
+  const area = document.getElementById('minigame-play-area');
+  let idx = 0, score = 0;
+
+  const render = () => {
+    const q = questions[idx];
+    const pct = Math.round((idx / questions.length) * 100);
+    area.innerHTML = `
+      <div class="game-progress-bar"><div class="game-progress-fill" style="width:${pct}%"></div></div>
+      <div class="game-score-row"><span>Pergunta ${idx+1}/${questions.length}</span><span>⭐ ${score}</span></div>
+      <div class="quiz-card">
+        <div class="quiz-question">${escHtml(q.question)}</div>
+        <div class="quiz-options" id="quiz-options">
+          ${q.options.map((opt, i) => `
+            <button class="quiz-option" onclick="quizAnswer(${i}, ${q.correct}, '${escHtml(q.explanation).replace(/'/g,"\\'")}')">
+              <span class="opt-letter">${'ABCD'[i]}</span> ${escHtml(opt)}
+            </button>`).join('')}
+        </div>
+        <div id="quiz-explanation" class="quiz-explanation hidden"></div>
+      </div>`;
+  };
+
+  window.quizAnswer = (chosen, correct, explanation) => {
+    const opts = document.querySelectorAll('.quiz-option');
+    opts.forEach(b => b.disabled = true);
+    opts[correct].classList.add('correct');
+    const isRight = chosen === correct;
+    if (!isRight) opts[chosen].classList.add('wrong');
+    SoundFX[isRight ? 'correct' : 'wrong']();
+    if (isRight) score++;
+
+    const expEl = document.getElementById('quiz-explanation');
+    expEl.classList.remove('hidden');
+    expEl.innerHTML = `${isRight ? '✅' : '❌'} ${explanation}`;
+
+    setTimeout(() => {
+      idx++;
+      if (idx >= questions.length) {
+        const xpEarned = score * MINI_GAMES.quiz.xp;
+        addXP(xpEarned);
+        area.innerHTML = `<div class="game-result">
+          <div class="result-emoji">${score >= questions.length * 0.8 ? '🏆' : score >= questions.length * 0.5 ? '😊' : '💪'}</div>
+          <h3>Você acertou ${score}/${questions.length}</h3>
+          <div class="result-xp">+${xpEarned} XP ganhos!</div>
+          <button class="btn-primary" style="width:auto;margin-top:16px" onclick="MINI_GAMES.quiz.start('${langId}')">Jogar novamente 🔄</button>
+        </div>`;
+      } else render();
+    }, 1600);
+  };
+
+  render();
+}
+
+// ── FILL BLANK RENDERER ───────────────────────────────────────────────
+function renderFillBlank(items, langId) {
+  const area = document.getElementById('minigame-play-area');
+  let idx = 0, score = 0;
+
+  const render = () => {
+    const it = items[idx];
+    const pct = Math.round((idx / items.length) * 100);
+    area.innerHTML = `
+      <div class="game-progress-bar"><div class="game-progress-fill" style="width:${pct}%"></div></div>
+      <div class="game-score-row"><span>Frase ${idx+1}/${items.length}</span><span>⭐ ${score}</span></div>
+      <div class="fillblank-card">
+        <div class="fb-sentence">${escHtml(it.sentence)}</div>
+        <div class="fb-hint">💡 Dica: ${escHtml(it.hint)}</div>
+        <input class="fb-input" id="fb-input" type="text" placeholder="Digite a palavra que falta..." autocomplete="off" />
+        <button class="btn-primary" style="width:auto" onclick="checkFillBlank('${escHtml(it.answer).replace(/'/g,"\\'")}', '${langId}')">Verificar ✓</button>
+        <div id="fb-result" class="fb-result hidden"></div>
+      </div>`;
+
+    document.getElementById('fb-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkFillBlank(it.answer, langId);
+    });
+  };
+
+  window.checkFillBlank = (answer, lId) => {
+    const input = document.getElementById('fb-input');
+    const val = input?.value?.trim().toLowerCase();
+    if (!val) return;
+    const correct = val === answer.toLowerCase();
+    SoundFX[correct ? 'correct' : 'wrong']();
+    if (correct) score++;
+    const res = document.getElementById('fb-result');
+    res.classList.remove('hidden');
+    res.innerHTML = correct
+      ? `<span class="fb-correct">✅ Correto! A resposta é: <strong>${answer}</strong></span>`
+      : `<span class="fb-wrong">❌ A resposta correta é: <strong>${answer}</strong></span>`;
+
+    setTimeout(() => {
+      idx++;
+      if (idx >= items.length) {
+        const xpEarned = score * MINI_GAMES.fillblank.xp;
+        addXP(xpEarned);
+        area.innerHTML = `<div class="game-result">
+          <div class="result-emoji">${score >= items.length * 0.8 ? '🏆' : score >= items.length * 0.5 ? '😊' : '💪'}</div>
+          <h3>Você acertou ${score}/${items.length}</h3>
+          <div class="result-xp">+${xpEarned} XP ganhos!</div>
+          <button class="btn-primary" style="width:auto;margin-top:16px" onclick="MINI_GAMES.fillblank.start('${lId}')">Jogar novamente 🔄</button>
+        </div>`;
+      } else render();
+    }, 1600);
+  };
+
+  render();
+}
+
+// ── MEMORY GAME RENDERER ──────────────────────────────────────────────
+function renderMemoryGame(pairs, langId) {
+  const area = document.getElementById('minigame-play-area');
+  // Build card array (word + translation interleaved)
+  const cards = [];
+  pairs.forEach((p, i) => {
+    cards.push({ id: i, type: 'word', text: p.word, pair: i });
+    cards.push({ id: i + pairs.length, type: 'trans', text: p.translation, pair: i });
+  });
+  // Shuffle
+  cards.sort(() => Math.random() - 0.5);
+
+  let flipped = [], matched = [], moves = 0, locked = false;
+
+  const render = () => {
+    area.innerHTML = `
+      <div class="game-score-row"><span>🧠 Jogo de Memória</span><span>Jogadas: ${moves}</span></div>
+      <div class="memory-grid" id="memory-grid">
+        ${cards.map((c, i) => `
+          <div class="mem-card ${matched.includes(c.pair) ? 'matched' : ''}" data-idx="${i}" data-pair="${c.pair}">
+            <div class="mem-front">❓</div>
+            <div class="mem-back">${escHtml(c.text)}</div>
+          </div>`).join('')}
+      </div>
+      <div id="mem-result" class="mem-result hidden"></div>`;
+
+    document.querySelectorAll('.mem-card:not(.matched)').forEach(card => {
+      card.addEventListener('click', () => {
+        if (locked) return;
+        const idx = parseInt(card.dataset.idx);
+        if (flipped.includes(idx)) return;
+        card.classList.add('reveal');
+        flipped.push(idx);
+        SoundFX.click();
+
+        if (flipped.length === 2) {
+          locked = true;
+          moves++;
+          const [a, b] = flipped.map(i => cards[i]);
+          if (a.pair === b.pair && a.type !== b.type) {
+            SoundFX.correct();
+            matched.push(a.pair);
+            flipped = [];
+            locked = false;
+            if (matched.length === pairs.length) {
+              addXP(MINI_GAMES.memory.xp);
+              const res = document.getElementById('mem-result');
+              if(res){ res.classList.remove('hidden'); res.innerHTML = `🏆 Parabéns! Concluído em ${moves} jogadas! <strong>+${MINI_GAMES.memory.xp} XP</strong>`; }
+              SoundFX.levelup();
+            }
+          } else {
+            SoundFX.wrong();
+            setTimeout(() => {
+              document.querySelectorAll('.mem-card.reveal:not(.matched)').forEach(c => c.classList.remove('reveal'));
+              flipped = [];
+              locked = false;
+            }, 900);
+          }
+        }
+      });
+    });
+  };
+
+  render();
+}
+
+function startMiniGame(gameKey) {
+  const langId = document.getElementById('games-lang-select').value;
+  const area = document.getElementById('minigame-play-area');
+  area.innerHTML = '';
+  document.getElementById('minigames-list').classList.add('hidden');
+  document.getElementById('minigame-active').classList.remove('hidden');
+  document.getElementById('minigame-title').textContent = `${MINI_GAMES[gameKey].emoji} ${MINI_GAMES[gameKey].name}`;
+  MINI_GAMES[gameKey].start(langId);
+}
+
+function closeMiniGame() {
+  document.getElementById('minigames-list').classList.remove('hidden');
+  document.getElementById('minigame-active').classList.add('hidden');
+  document.getElementById('minigame-play-area').innerHTML = '';
+}
+
 // ── PROGRESS ──────────────────────────────────────────────────────────
 function renderProgress() {
   const xp     = currentUser.xp || 0;
@@ -873,6 +1307,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── THEME
   document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+
+  // ── SOUND TOGGLE
+  const btnSound = document.getElementById('btn-sound');
+  if (btnSound) {
+    const updateSoundBtn = () => {
+      const on = localStorage.getItem('fluently_sound') !== 'off';
+      btnSound.textContent = on ? '🔊 Som: On' : '🔇 Som: Off';
+    };
+    updateSoundBtn();
+    btnSound.addEventListener('click', () => { SoundFX.toggle(); updateSoundBtn(); SoundFX.click(); });
+  }
 
   // ── CHAT SEND
   document.getElementById('btn-send').addEventListener('click', sendChatMessage);
